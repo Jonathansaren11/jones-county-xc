@@ -29,30 +29,54 @@ jobs:
         run: npm run build
 
       - name: Set up SSH key
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SERVER_IP: ${{ secrets.SERVER_IP }}
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 700 ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
+
+          # Add server to known_hosts with timeout and retry
+          for i in 1 2 3; do
+            if ssh-keyscan -T 10 -H "$SERVER_IP" >> ~/.ssh/known_hosts 2>/dev/null; then
+              echo "Successfully added server to known_hosts"
+              break
+            fi
+            echo "Attempt $i failed, retrying..."
+            sleep 2
+          done
+
+          chmod 644 ~/.ssh/known_hosts
+
+          # Verify SSH connection
+          ssh -o BatchMode=yes -o ConnectTimeout=10 ubuntu@"$SERVER_IP" "echo 'SSH connection successful'"
 
       - name: Copy frontend build to server
+        env:
+          SERVER_IP: ${{ secrets.SERVER_IP }}
         run: |
           rsync -avz --delete \
             ./frontend/dist/ \
-            ubuntu@${{ secrets.SERVER_IP }}:/var/www/jones-county-xc/
+            ubuntu@"$SERVER_IP":/var/www/jones-county-xc/
 
       - name: Copy backend and deploy script to server
+        env:
+          SERVER_IP: ${{ secrets.SERVER_IP }}
         run: |
           rsync -avz \
             ./backend/ \
-            ubuntu@${{ secrets.SERVER_IP }}:~/jones-county-xc-backend/
+            ubuntu@"$SERVER_IP":~/jones-county-xc-backend/
           rsync -avz \
             ./deploy.sh \
-            ubuntu@${{ secrets.SERVER_IP }}:~/deploy.sh
+            ubuntu@"$SERVER_IP":~/deploy.sh
 
       - name: Run deployment script on server
+        env:
+          SERVER_IP: ${{ secrets.SERVER_IP }}
         run: |
-          ssh ubuntu@${{ secrets.SERVER_IP }} "chmod +x ~/deploy.sh && ~/deploy.sh"
+          ssh ubuntu@"$SERVER_IP" "chmod +x ~/deploy.sh && ~/deploy.sh"
 
       - name: Cleanup SSH key
         if: always()
