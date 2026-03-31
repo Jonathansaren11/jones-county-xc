@@ -1,0 +1,59 @@
+name: Deploy to AWS Lightsail
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: ./frontend
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: ./frontend
+        run: npm run build
+
+      - name: Set up SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
+
+      - name: Copy frontend build to server
+        run: |
+          rsync -avz --delete \
+            ./frontend/dist/ \
+            ubuntu@${{ secrets.SERVER_IP }}:/var/www/jones-county-xc/
+
+      - name: Copy backend and deploy script to server
+        run: |
+          rsync -avz \
+            ./backend/ \
+            ubuntu@${{ secrets.SERVER_IP }}:~/jones-county-xc-backend/
+          rsync -avz \
+            ./deploy.sh \
+            ubuntu@${{ secrets.SERVER_IP }}:~/deploy.sh
+
+      - name: Run deployment script on server
+        run: |
+          ssh ubuntu@${{ secrets.SERVER_IP }} "chmod +x ~/deploy.sh && ~/deploy.sh"
+
+      - name: Cleanup SSH key
+        if: always()
+        run: rm -f ~/.ssh/id_rsa
