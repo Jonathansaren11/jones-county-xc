@@ -5,7 +5,7 @@ echo "=== Jones County XC Deployment Script ==="
 echo "Started at: $(date)"
 
 # Configuration
-GO_BIN="/usr/local/go/bin/go"
+GO_BIN="/usr/bin/go"
 BACKEND_DIR="$HOME/jones-county-xc-backend"
 SERVICE_NAME="jones-county-xc-backend"
 BINARY_NAME="jones-county-xc-backend"
