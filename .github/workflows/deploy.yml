@@ -28,6 +28,17 @@ jobs:
         working-directory: ./frontend
         run: npm run build
 
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+
+      - name: Build backend Linux binary
+        working-directory: ./backend
+        run: |
+          go mod download
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o xc-backend .
+
       - name: Set up SSH key
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
@@ -61,13 +72,14 @@ jobs:
             ./frontend/dist/ \
             ubuntu@"$SERVER_IP":/var/www/jones-county-xc/
 
-      - name: Copy backend and deploy script to server
+      - name: Copy backend binary and deploy script to server
         env:
           SERVER_IP: ${{ secrets.SERVER_IP }}
         run: |
+          ssh ubuntu@"$SERVER_IP" "mkdir -p ~/jones-county-xc-backend"
           rsync -avz \
-            ./backend/ \
-            ubuntu@"$SERVER_IP":~/jones-county-xc-backend/
+            ./backend/xc-backend \
+            ubuntu@"$SERVER_IP":~/jones-county-xc-backend/xc-backend
           rsync -avz \
             ./deploy.sh \
             ubuntu@"$SERVER_IP":~/deploy.sh
