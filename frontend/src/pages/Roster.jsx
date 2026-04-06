@@ -1,106 +1,113 @@
-import './Pages.css'
+import { useQuery } from "@tanstack/react-query"
+import { Button } from "@/components/ui/button"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import { fetchJSON } from "@/lib/api"
+import "./Pages.css"
+
+function formatGrade(grade) {
+  const n = Number(grade)
+  const map = { 9: "9th", 10: "10th", 11: "11th", 12: "12th" }
+  return map[n] ? `${map[n]} Grade` : `Grade ${grade}`
+}
+
+function AthleteCardSkeleton() {
+  return (
+    <Card className="border-[var(--gray-200)] shadow-sm">
+      <CardHeader className="space-y-2">
+        <div className="h-5 w-3/4 animate-pulse rounded-md bg-[var(--gray-200)]" />
+        <div className="h-4 w-1/3 animate-pulse rounded-md bg-[var(--gray-200)]" />
+      </CardHeader>
+      <CardContent className="space-y-2">
+        <div className="h-4 w-1/2 animate-pulse rounded-md bg-[var(--gray-200)]" />
+      </CardContent>
+    </Card>
+  )
+}
 
 function Roster() {
-  const varsityBoys = [
-    { name: 'John Smith', grade: 'Senior', pr: '16:28' },
-    { name: 'Michael Johnson', grade: 'Junior', pr: '16:52' },
-    { name: 'David Williams', grade: 'Senior', pr: '17:05' },
-    { name: 'James Brown', grade: 'Sophomore', pr: '17:18' },
-    { name: 'Robert Davis', grade: 'Junior', pr: '17:25' },
-    { name: 'William Miller', grade: 'Senior', pr: '17:33' },
-    { name: 'Christopher Wilson', grade: 'Sophomore', pr: '17:45' },
-  ]
-
-  const varsityGirls = [
-    { name: 'Sarah Johnson', grade: 'Senior', pr: '19:15' },
-    { name: 'Emily Davis', grade: 'Junior', pr: '19:42' },
-    { name: 'Jessica Williams', grade: 'Senior', pr: '19:58' },
-    { name: 'Ashley Brown', grade: 'Sophomore', pr: '20:12' },
-    { name: 'Amanda Miller', grade: 'Junior', pr: '20:28' },
-    { name: 'Megan Wilson', grade: 'Senior', pr: '20:35' },
-    { name: 'Lauren Taylor', grade: 'Freshman', pr: '20:48' },
-  ]
-
-  const coaches = [
-    { name: 'Coach Mike Thompson', role: 'Head Coach', years: '15 years' },
-    { name: 'Coach Lisa Anderson', role: 'Assistant Coach', years: '8 years' },
-    { name: 'Coach David Martinez', role: 'JV Coach', years: '3 years' },
-  ]
+  const {
+    data: athletes,
+    isPending,
+    isError,
+    error,
+    refetch,
+  } = useQuery({
+    queryKey: ["athletes"],
+    queryFn: () => fetchJSON("/api/athletes"),
+  })
 
   return (
     <div className="page">
       <div className="page-header">
         <h1>Team Roster</h1>
-        <p>Meet the 2024 Jones County Cross Country Team</p>
+        <p>Meet the Jones County Cross Country team</p>
       </div>
-      
+
       <section className="section">
         <div className="container">
-          <h2 className="section-title">Coaching Staff</h2>
-          <div className="coaches-grid">
-            {coaches.map((coach, index) => (
-              <div key={index} className="coach-card">
-                <div className="coach-avatar">{coach.name.split(' ').map(n => n[0]).join('')}</div>
-                <h3>{coach.name}</h3>
-                <p className="coach-role">{coach.role}</p>
-                <p className="coach-years">{coach.years}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+          {isPending && (
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <AthleteCardSkeleton key={i} />
+              ))}
+            </div>
+          )}
 
-      <section className="section section-alt">
-        <div className="container">
-          <div className="roster-columns">
-            <div className="roster-section">
-              <h2 className="section-title">Varsity Boys</h2>
-              <div className="roster-table-wrapper">
-                <table className="roster-table">
-                  <thead>
-                    <tr>
-                      <th>Name</th>
-                      <th>Grade</th>
-                      <th>5K PR</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {varsityBoys.map((runner, index) => (
-                      <tr key={index}>
-                        <td>{runner.name}</td>
-                        <td>{runner.grade}</td>
-                        <td className="pr-cell">{runner.pr}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+          {isError && (
+            <div className="mx-auto max-w-md rounded-xl border border-[var(--gray-200)] bg-[var(--white)] p-8 text-center shadow-sm">
+              <p className="mb-2 font-medium text-[var(--primary-green)]">
+                Couldn&apos;t load the roster
+              </p>
+              <p className="mb-6 text-sm text-[var(--gray-600)]">
+                {error?.message || "Something went wrong. Please try again."}
+              </p>
+              <Button type="button" onClick={() => refetch()}>
+                Retry
+              </Button>
             </div>
-            
-            <div className="roster-section">
-              <h2 className="section-title">Varsity Girls</h2>
-              <div className="roster-table-wrapper">
-                <table className="roster-table">
-                  <thead>
-                    <tr>
-                      <th>Name</th>
-                      <th>Grade</th>
-                      <th>5K PR</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {varsityGirls.map((runner, index) => (
-                      <tr key={index}>
-                        <td>{runner.name}</td>
-                        <td>{runner.grade}</td>
-                        <td className="pr-cell">{runner.pr}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
+          )}
+
+          {!isPending && !isError && athletes && (
+            <>
+              {athletes.length === 0 ? (
+                <p className="text-center text-[var(--gray-600)]">
+                  No athletes listed yet.
+                </p>
+              ) : (
+                <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                  {athletes.map((a) => (
+                    <Card
+                      key={a.athlete_id}
+                      className="border-[var(--gray-200)] shadow-sm transition-shadow hover:shadow-md"
+                    >
+                      <CardHeader>
+                        <CardTitle className="text-[var(--gray-800)]">
+                          {a.name}
+                        </CardTitle>
+                        <CardDescription>
+                          {formatGrade(a.grade)}
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <p className="text-sm text-[var(--gray-600)]">
+                          <span className="font-medium text-[var(--primary-green)]">
+                            5K PR:{" "}
+                          </span>
+                          {a.personal_record_time}
+                        </p>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
         </div>
       </section>
     </div>

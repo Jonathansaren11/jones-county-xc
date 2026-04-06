@@ -26,5 +26,14 @@ sudo systemctl is-active --quiet "$SERVICE_NAME"
 echo "Service '$SERVICE_NAME' restarted successfully"
 
 echo ""
+echo "=== Reloading nginx (static site + /api proxy) ==="
+if command -v nginx >/dev/null 2>&1; then
+  sudo nginx -t && sudo systemctl reload nginx
+  echo "Nginx reloaded"
+else
+  echo "nginx not found in PATH; skip reload"
+fi
+
+echo ""
 echo "=== Deployment completed successfully ==="
 echo "Finished at: $(date)"

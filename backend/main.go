@@ -1,7 +1,9 @@
 package main
 
 import (
+	"crypto/rand"
 	"database/sql"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"log"
@@ -41,6 +43,10 @@ type createAthleteRequest struct {
 	Name               string `json:"name" binding:"required"`
 	Grade              int    `json:"grade" binding:"required"`
 	PersonalRecordTime string `json:"personal_record_time" binding:"required"`
+}
+
+type loginRequest struct {
+	Password string `json:"password" binding:"required"`
 }
 
 func getEnvOrError(key string) (string, error) {
@@ -228,6 +234,89 @@ func createAthleteHandler(db *sql.DB) gin.HandlerFunc {
 	}
 }
 
+func randomToken() (string, error) {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(b), nil
+}
+
+func loginHandler(c *gin.Context) {
+	var req loginRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+	expected := os.Getenv("ADMIN_PASSWORD")
+	if expected == "" {
+		log.Print("login: ADMIN_PASSWORD is not set")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "server misconfigured"})
+		return
+	}
+	if req.Password != expected {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid password"})
+		return
+	}
+	token, err := randomToken()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not issue token"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"token": token})
+}
+
+func updateAthleteHandler(db *sql.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		athleteIDParam := c.Param("id")
+		athleteID, err := strconv.Atoi(athleteIDParam)
+		if err != nil || athleteID <= 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid athlete id"})
+			return
+		}
+
+		var req createAthleteRequest
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		if req.Grade < 9 || req.Grade > 12 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "grade must be between 9 and 12"})
+			return
+		}
+
+		result, err := db.Exec(
+			"UPDATE athletes SET name = ?, grade = ?, personal_record_time = ? WHERE athlete_id = ?",
+			req.Name,
+			req.Grade,
+			req.PersonalRecordTime,
+			athleteID,
+		)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		affected, err := result.RowsAffected()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		if affected == 0 {
+			c.JSON(http.StatusNotFound, gin.H{"error": "athlete not found"})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"athlete_id":             athleteID,
+			"name":                   req.Name,
+			"grade":                  req.Grade,
+			"personal_record_time":   req.PersonalRecordTime,
+		})
+	}
+}
+
 func deleteAthleteHandler(db *sql.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		athleteIDParam := c.Param("id")
@@ -271,10 +360,12 @@ func main() {
 	router := gin.Default()
 
 	router.GET("/health", healthHandler)
+	router.POST("/api/login", loginHandler)
 	router.GET("/api/athletes", getAthletesHandler(db))
 	router.GET("/api/meets", getMeetsHandler(db))
 	router.GET("/api/results", getResultsHandler(db))
 	router.POST("/api/athletes", createAthleteHandler(db))
+	router.PUT("/api/athletes/:id", updateAthleteHandler(db))
 	router.DELETE("/api/athletes/:id", deleteAthleteHandler(db))
 
 	log.Println("Backend server starting on :8080")

@@ -1,0 +1,12 @@
+# Set ADMIN_PASSWORD (and DB_*) for the Go service without editing the main unit.
+#
+# On the server:
+#   sudo systemctl edit xc-backend
+# Paste the block below (paths already use /etc/xc-backend.env), save, exit.
+#
+#   sudo systemctl daemon-reload
+#   sudo systemctl restart xc-backend
+#   sudo systemctl status xc-backend
+
+[Service]
+EnvironmentFile=-/etc/xc-backend.env
